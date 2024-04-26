@@ -20,6 +20,11 @@ apt-get install -y software-properties-common
 add-apt-repository ppa:deadsnakes/ppa
 apt-get update
 apt-get install -y python3.10
+apt install -y python3-pip
+apt install python3-boto3
+apt install python3-botocore
+apt install python3-dotenv
+apt install python3-pandas
 
 # Install Node Version Manager (NVM)
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
@@ -56,3 +61,6 @@ echo "=================================="
 
 # Run Docker compose
 docker compose up -d postgres
+
+#configure s3 bucket for neynar information
+aws configure --profile neynar_parquet_exports
