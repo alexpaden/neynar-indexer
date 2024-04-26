@@ -44,7 +44,7 @@ sudo apt-get install -y awscli
 # Install Parquet-tools
 # Since parquet-tools is not available via apt, we use a Java-based tool from the Apache Parquet project.
 sudo apt-get install -y default-jdk
-wget https://repo1.maven.org/maven2/org/apache/parquet/parquet-tools/1.11.1/parquet-tools-1.11.1.jar -O /usr/loc>
+wget https://repo1.maven.org/maven2/org/apache/parquet/parquet-tools/1.11.1/parquet-tools-1.11.1.jar -O /usr/local/bin/parquet-tools.jar
 echo 'alias parquet-tools="java -jar /usr/local/bin/parquet-tools.jar"' >> ~/.bashrc
 source ~/.bashrc
 
