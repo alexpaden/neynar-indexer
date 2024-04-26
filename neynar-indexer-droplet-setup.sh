@@ -51,3 +51,8 @@ source ~/.bashrc
 
 # Display completion message
 echo "All installations are complete."
+echo "=================================="
+echo "=================================="
+
+# Run Docker compose
+docker compose up -d postgres
