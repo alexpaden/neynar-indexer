@@ -5,6 +5,12 @@ apt-get update && apt-get full-upgrade -y
 apt-get install -y needrestart
 needrestart -r a
 
+#aws on aws ubuntu
+apt install unzip
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "../awscliv2.zip"
+unzip ../awscliv2.zip
+sudo ../aws/install
+
 # Install prerequisites and Docker
 apt-get install -y apt-transport-https ca-certificates curl software-properties-common \
                    postgresql postgresql-contrib default-jdk awscli
