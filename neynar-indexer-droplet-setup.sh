@@ -50,7 +50,7 @@ echo 'alias parquet-tools="java -jar /usr/local/bin/parquet-tools.jar"' >> ~/.ba
 source ~/.bashrc
 
 # Run Docker compose
-docker compose up -d postgres
+# docker compose up -d postgres
 
 # Configure s3 bucket for neynar information (assuming credentials are set)
 aws configure --profile neynar_parquet_exports
