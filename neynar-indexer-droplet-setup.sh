@@ -20,6 +20,9 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 apt-get update && apt-get install -y docker-ce
 
+apt install nodejs npm -y
+npm install pm2@latest -g
+
 # Python installation and setup
 add-apt-repository -y ppa:deadsnakes/ppa
 pt-get update
@@ -51,6 +54,7 @@ echo 'alias parquet-tools="java -jar /usr/local/bin/parquet-tools.jar"' >> ~/.ba
 source ~/.bashrc
 
 # Run Docker compose
+# running the command below will start the postgres db in docker in your current vps
 # docker compose up -d postgres
 
 # Configure s3 bucket for neynar information (assuming credentials are set)
