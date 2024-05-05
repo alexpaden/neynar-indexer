@@ -29,6 +29,7 @@ apt install -y python3-boto3
 apt install -y python3-botocore
 apt install -y python3-dotenv
 apt install -y python3-pandas
+apt install -y python3-filelock
 
 # Node Version Manager (NVM) and Node setup
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash

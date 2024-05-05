@@ -1,15 +1,14 @@
 -- noinspection SqlDialectInspectionForFile
-
 -- noinspection SqlNoDataSourceInspectionForFile
 
-CREATE TABLE farcaster_fids (
+CREATE TABLE IF NOT EXISTS fids (
     fid BIGINT PRIMARY KEY,
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
     custody_address BYTEA
 );
 
-CREATE TABLE farcaster_storage (
+CREATE TABLE IF NOT EXISTS storage (
     id BIGINT PRIMARY KEY,
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
@@ -20,7 +19,7 @@ CREATE TABLE farcaster_storage (
     expiry TIMESTAMP(6)
 );
 
-CREATE TABLE farcaster_links (
+CREATE TABLE IF NOT EXISTS links (
     id BIGINT PRIMARY KEY,
     fid BIGINT,
     target_fid BIGINT,
@@ -33,7 +32,7 @@ CREATE TABLE farcaster_links (
     display_timestamp TIMESTAMP(6)
 );
 
-CREATE TABLE farcaster_casts (
+CREATE TABLE IF NOT EXISTS casts (
     id BIGINT PRIMARY KEY,
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
@@ -52,7 +51,7 @@ CREATE TABLE farcaster_casts (
     root_parent_url VARCHAR
 );
 
-CREATE TABLE farcaster_user_data (
+CREATE TABLE IF NOT EXISTS user_data (
     id BIGINT PRIMARY KEY,
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
@@ -64,7 +63,7 @@ CREATE TABLE farcaster_user_data (
     value VARCHAR
 );
 
-CREATE TABLE farcaster_reactions (
+CREATE TABLE IF NOT EXISTS reactions (
     id BIGINT PRIMARY KEY,
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
@@ -78,7 +77,7 @@ CREATE TABLE farcaster_reactions (
     target_url VARCHAR
 );
 
-CREATE TABLE farcaster_fnames (
+CREATE TABLE IF NOT EXISTS fnames (
     fid BIGINT PRIMARY KEY,
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
@@ -88,7 +87,7 @@ CREATE TABLE farcaster_fnames (
     fname VARCHAR
 );
 
-CREATE TABLE farcaster_signers (
+CREATE TABLE IF NOT EXISTS signers (
     id BIGINT PRIMARY KEY,
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
@@ -100,7 +99,7 @@ CREATE TABLE farcaster_signers (
     app_fid BIGINT
 );
 
-CREATE TABLE farcaster_verifications (
+CREATE TABLE IF NOT EXISTS verifications (
     id BIGINT PRIMARY KEY,
     created_at TIMESTAMP(6),
     updated_at TIMESTAMP(6),
@@ -109,4 +108,9 @@ CREATE TABLE farcaster_verifications (
     fid BIGINT,
     hash BYTEA,
     claim VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS file_tracking (
+    file_name VARCHAR PRIMARY KEY,
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, BigInteger, TIMESTAMP, VARCHAR, Integer
 from sqlalchemy.dialects.postgresql import BYTEA  # Correct import for BYTEA
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import text
 
 Base = declarative_base()
 
@@ -116,4 +117,4 @@ class Verifications(Base):
 class FileTracking(Base):
     __tablename__ = 'file_tracking'
     file_name = Column(VARCHAR, primary_key=True)
-    processed_at = Column(TIMESTAMP, default='CURRENT_TIMESTAMP')
+    processed_at = Column(TIMESTAMP, default=text('CURRENT_TIMESTAMP'))
