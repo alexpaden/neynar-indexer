@@ -92,7 +92,7 @@ def process_file(file_path):
         logging.info(f"Skipping locked file {file_name}")
 
 def main():
-    path = './downloads/incremental'
+    path = '../downloads/incremental'
     for file in os.listdir(path):
         file_path = os.path.join(path, file)
         process_file(file_path)

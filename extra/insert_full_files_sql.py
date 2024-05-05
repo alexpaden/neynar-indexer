@@ -43,10 +43,12 @@ def run_sql_script(filename):
         conn.close()
 
 def table_is_empty(table_name):
-    query = text(f"SELECT COUNT(*) = 0 FROM {table_name}")
+    # Query to check if at least one row exists
+    query = text(f"SELECT EXISTS (SELECT 1 FROM {table_name} LIMIT 1)")
     with ENGINE.connect() as conn:
         result = conn.execute(query)
-        return result.scalar()
+        # Return True if no rows exist
+        return not result.scalar()
 
 def process_file(file_path):
     table_class_map = {
@@ -87,8 +89,8 @@ def process_file(file_path):
             session.close()
 
 def main():
-    run_sql_script('./sql/setup.sql')
-    path = './downloads/full'
+    run_sql_script('../sql/setup.sql')
+    path = '../downloads/full'
 
     for file in os.listdir(path):
         table_name = file.split('-')[1]
