@@ -1,4 +1,6 @@
 import os
+import sys
+
 import pyarrow.parquet as pq
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -7,21 +9,26 @@ from models import Base, Fids, Storage, Links, Casts, UserData, Reactions, Fname
 import logging
 from dotenv import load_dotenv
 from filelock import FileLock, Timeout
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv()
 
-DB_NAME = os.getenv('DB_NAME')
-DB_USER = os.getenv('DB_USER')
-DB_PASS = os.getenv('DB_PASS')
-DB_HOST = os.getenv('DB_HOST')
-DB_PORT = os.getenv('DB_PORT')
-CONNECTION_STRING = f'postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+required_env_vars = ['DB_NAME', 'DB_USER', 'DB_PASS', 'DB_HOST', 'DB_PORT']
+env_vars = {var: os.getenv(var) for var in required_env_vars}
+
+if None in env_vars.values():
+    missing_vars = [var for var, value in env_vars.items() if value is None]
+    logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+    sys.exit(1)
+
+CONNECTION_STRING = f"postgresql://{env_vars['DB_USER']}:{env_vars['DB_PASS']}@{env_vars['DB_HOST']}:{env_vars['DB_PORT']}/{env_vars['DB_NAME']}"
+
 ENGINE = create_engine(CONNECTION_STRING)
 Session = sessionmaker(bind=ENGINE)
 
-skip_tables = {'links', 'reactions'}
-
+#skip_tables = {'links'}
+skip_tables = {}
 
 def run_sql_script(filename):
     with open(filename, 'r') as file:
@@ -56,6 +63,25 @@ def record_file_as_processed(file_name):
     session.add(tracking_entry)
     session.commit()
     session.close()
+
+
+def extract_timestamp(filename):
+    parts = filename.split('-')
+    try:
+        if len(parts) > 3 and parts[-2].isdigit() and parts[-1].split('.')[0].isdigit():
+            start_timestamp = int(parts[-2])
+            end_timestamp = int(parts[-1].split('.')[0])
+            return max(start_timestamp, end_timestamp)
+        elif parts[-1].split('.')[0].isdigit():
+            return int(parts[-1].split('.')[0])
+        else:
+            raise ValueError("No valid timestamp found in filename.")
+    except ValueError as e:
+        raise ValueError(f"Error extracting timestamp from {filename}: {e}")
+
+
+def convert_unix_to_datetime(unix_time):
+    return datetime.utcfromtimestamp(unix_time)
 
 
 def table_is_empty(table_name):
@@ -137,16 +163,32 @@ def main():
     run_sql_script('./sql/setup.sql')
 
     full_path = './downloads/full'
+    newest_full_timestamp = datetime.min
     for file in os.listdir(full_path):
         file_path = os.path.join(full_path, file)
-        process_file(file_path, incremental=False)
+        try:
+            unix_timestamp = extract_timestamp(file)
+            timestamp = convert_unix_to_datetime(unix_timestamp)
+            if timestamp > newest_full_timestamp:
+                newest_full_timestamp = timestamp
+            process_file(file_path, incremental=False)
+        except ValueError as e:
+            logging.error(e)
+            continue
 
     incremental_path = './downloads/incremental'
     for file in os.listdir(incremental_path):
         file_path = os.path.join(incremental_path, file)
-        process_file(file_path, incremental=True)
-
+        try:
+            unix_timestamp = extract_timestamp(file)
+            timestamp = convert_unix_to_datetime(unix_timestamp)
+            if timestamp >= newest_full_timestamp:
+                process_file(file_path, incremental=True)
+        except ValueError as e:
+            logging.error(e)
+            continue
 
 if __name__ == "__main__":
     main()
     logging.info("Script finished")
+
