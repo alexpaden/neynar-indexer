@@ -1,13 +1,13 @@
 module.exports = {
   apps : [{
     name: 'download_files',
-    script: './download_files.sh',
+    script: './scripts/download_files.sh',
     cron_restart: '*/5 * * * *',
     exec_mode: 'fork',
     autorestart: false
   },{
     name: 'insert_update_sql',
-    script: './insert_update_sql.sh',
+    script: './scripts/insert_update_sql.sh',
     cron_restart: '*/5 * * * *',
     exec_mode: 'fork',
     autorestart: false

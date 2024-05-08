@@ -14,9 +14,9 @@ This system utilizes a combination of a Digital Ocean VPS and a managed PostgreS
 1. Before deploying the application, run the `neynar_indexer_droplet_setup.sh` script to install necessary dependencies on your VPS:
 
 ```sh
-chmod +x ./neynar_indexer_droplet_setup.sh
+chmod +x ./scripts/neynar_indexer_droplet_setup.sh
 
-./neynar_indexer_droplet_setup.sh
+sudo scripts/neynar_indexer_droplet_setup.sh
 ```
 
 2. **Database Configuration:**
@@ -47,3 +47,5 @@ chmod +x ./neynar_indexer_droplet_setup.sh
 
 ```sh
 pm2 start ecosystem.config.js
+```
+
