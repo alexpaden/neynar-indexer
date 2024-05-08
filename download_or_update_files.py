@@ -7,10 +7,8 @@ from dotenv import load_dotenv
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define paths and file types
 s3_daily_path = 's3://tf-premium-parquet/public-postgres/farcaster/v2/full/'
 local_full_path = os.path.abspath('./downloads/full')
 s3_incremental_path = 's3://tf-premium-parquet/public-postgres/farcaster/v2/incremental/'
@@ -47,9 +45,10 @@ def download_most_recent_file(s3_path, local_path, file_type):
             local_file_path = os.path.join(local_path, os.path.basename(most_recent_file))
             if not os.path.exists(local_file_path):
                 s3.download_file(bucket_name, most_recent_file, local_file_path)
-                logging.info(f"Downloaded most recent file: {most_recent_file}")
+                #logging.info(f"Downloaded most recent file: {most_recent_file}")
             else:
-                logging.info(f"{most_recent_file} already downloaded.")
+                pass
+                #logging.info(f"{most_recent_file} already downloaded.")
         else:
             logging.info(f"No files found for {file_type} in {s3_path}")
     except NoCredentialsError as e:
@@ -66,6 +65,34 @@ def get_latest_full_timestamp(local_path, file_type):
         return None
     latest_file = max(files, key=lambda x: int(x.split('-')[-1].split('.')[0]))
     return int(latest_file.split('-')[-1].split('.')[0])
+
+
+def delete_outdated_incremental_files(local_incremental_path, file_type, latest_full_timestamp):
+    files_deleted_count = 0
+    for file in os.listdir(local_incremental_path):
+        if file_type in file and file.endswith('.parquet'):
+            file_name_parts = file.split('-')
+            if len(file_name_parts) == 4:
+                try:
+                    file_start_timestamp = int(file_name_parts[2])
+                    file_end_timestamp = int(file_name_parts[3].split('.')[0])
+
+                    if file_end_timestamp < latest_full_timestamp:
+                        os.remove(os.path.join(local_incremental_path, file))
+                        #logging.info(f"Deleted outdated incremental file: {file}")
+                        files_deleted_count += 1
+                except ValueError as e:
+                    logging.error(f"Error processing file {file}: {e}")
+            else:
+                logging.error(f"Filename format is unexpected: {file}")
+
+    if files_deleted_count > 0:
+        logging.info(f"Total of {files_deleted_count} outdated incremental files deleted for {file_type}.")
+    else:
+        logging.info(f"No outdated incremental files needed deletion for {file_type}.")
+
+
+
 
 def download_incremental_files(bucket_name, local_incremental_path, file_type, latest_timestamp):
     prefix = '/'.join(s3_incremental_path.split('/')[3:])
@@ -105,10 +132,12 @@ def manage_downloads():
     for file_type in file_types:
         latest_timestamp = get_latest_full_timestamp(local_full_path, file_type)
         if latest_timestamp:
+            delete_outdated_incremental_files(local_incremental_path, file_type, latest_timestamp)
             logging.info(f"Processing incremental files for {file_type} starting from timestamp {latest_timestamp}")
             download_incremental_files(s3_incremental_path.split('/')[2], local_incremental_path, file_type, latest_timestamp)
         else:
             logging.info(f"No existing full file found for {file_type}, skipping incremental download.")
+
 
 manage_downloads()
 logging.info("Download process completed.")
