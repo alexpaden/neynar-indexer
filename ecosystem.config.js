@@ -13,9 +13,8 @@ module.exports = {
     autorestart: false
   },{
     name: 'update_full_files',
-    script: 'python3',
-    args: 'update_full_files.py',
-    cron_restart: '0 0 */7 * *',
+    script: './scripts/update_full_files.sh',  // Updated to call the new Bash script
+    cron_restart: '0 0 */7 * *',  // Set this to your desired schedule
     exec_mode: 'fork',
     autorestart: false
   }]
