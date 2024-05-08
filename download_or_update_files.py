@@ -30,7 +30,7 @@ def file_already_downloaded(local_path, file_type):
 
 def download_most_recent_file(s3_path, local_path, file_type):
     if file_already_downloaded(local_path, file_type):
-        logging.info(f"{file_type} file already downloaded, skipping new download.")
+        #logging.info(f"{file_type} file already downloaded, skipping new download.")
         return
 
     try:
@@ -87,11 +87,8 @@ def delete_outdated_incremental_files(local_incremental_path, file_type, latest_
                 logging.error(f"Filename format is unexpected: {file}")
 
     if files_deleted_count > 0:
-        logging.info(f"Total of {files_deleted_count} outdated incremental files deleted for {file_type}.")
-    else:
-        logging.info(f"No outdated incremental files needed deletion for {file_type}.")
-
-
+        #logging.info(f"Total of {files_deleted_count} outdated incremental files deleted for {file_type}.")
+        pass
 
 
 def download_incremental_files(bucket_name, local_incremental_path, file_type, latest_timestamp):
@@ -117,7 +114,7 @@ def download_incremental_files(bucket_name, local_incremental_path, file_type, l
                         local_file_path = os.path.join(local_incremental_path, os.path.basename(file_key))
                         if not os.path.exists(local_file_path):
                             s3.download_file(bucket_name, file_key, local_file_path)
-                            logging.info(f"Downloaded incremental file: {file_key}")
+                            #logging.info(f"Downloaded incremental file: {file_key}")
 
         continuation_token = response.get('NextContinuationToken', None)
         if not continuation_token:
@@ -133,11 +130,8 @@ def manage_downloads():
         latest_timestamp = get_latest_full_timestamp(local_full_path, file_type)
         if latest_timestamp:
             delete_outdated_incremental_files(local_incremental_path, file_type, latest_timestamp)
-            logging.info(f"Processing incremental files for {file_type} starting from timestamp {latest_timestamp}")
+            #logging.info(f"Processing incremental files for {file_type} starting from timestamp {latest_timestamp}")
             download_incremental_files(s3_incremental_path.split('/')[2], local_incremental_path, file_type, latest_timestamp)
-        else:
-            logging.info(f"No existing full file found for {file_type}, skipping incremental download.")
 
 
 manage_downloads()
-logging.info("Download process completed.")

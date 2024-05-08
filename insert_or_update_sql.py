@@ -10,6 +10,8 @@ import logging
 from dotenv import load_dotenv
 from filelock import FileLock, Timeout
 from datetime import datetime
+from collections import defaultdict
+import threading
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv()
@@ -27,7 +29,7 @@ CONNECTION_STRING = f"postgresql://{env_vars['DB_USER']}:{env_vars['DB_PASS']}@{
 ENGINE = create_engine(CONNECTION_STRING)
 Session = sessionmaker(bind=ENGINE)
 
-#skip_tables = {'links'}
+#skip_tables = {'links', 'reactions'}
 skip_tables = {}
 
 def run_sql_script(filename):
@@ -85,17 +87,38 @@ def convert_unix_to_datetime(unix_time):
 
 
 def table_is_empty(table_name):
-    # Query to check if at least one row exists
     query = text(f"SELECT EXISTS (SELECT 1 FROM {table_name} LIMIT 1)")
     with ENGINE.connect() as conn:
         result = conn.execute(query)
-        # Return True if no rows exist
         return not result.scalar()
+
+
+def process_category_files(files, path, incremental):
+    """Process files for a specific category in chronological order."""
+    for file in files:
+        file_path = os.path.join(path, file)
+        try:
+            process_file(file_path, incremental)
+        except Exception as e:
+            logging.error(f"Error processing file {file}: {e}")
 
 
 def process_file(file_path, incremental=False):
     file_name = os.path.basename(file_path)
     table_name = file_name.split('-')[1].split('.')[0]
+
+    orm_class_dict = {
+        'fids': Fids,
+        'storage': Storage,
+        'links': Links,
+        'casts': Casts,
+        'user_data': UserData,
+        'reactions': Reactions,
+        'fnames': Fnames,
+        'signers': Signers,
+        'verifications': Verifications
+    }
+
     if table_name in skip_tables:
         #logging.info(f"Skipping file {file_name} associated with table {table_name}")
         return
@@ -104,30 +127,18 @@ def process_file(file_path, incremental=False):
     lock = FileLock(lock_path)
 
     try:
-        with lock.acquire(timeout=0):  # Non-blocking attempt
+        with lock.acquire(timeout=0), Session() as session:
             if incremental and file_already_processed(file_name):
                 #logging.info(f"Skipping already processed file {file_name}")
                 return
 
-            orm_class = {
-                'fids': Fids,
-                'storage': Storage,
-                'links': Links,
-                'casts': Casts,
-                'user_data': UserData,
-                'reactions': Reactions,
-                'fnames': Fnames,
-                'signers': Signers,
-                'verifications': Verifications
-            }.get(table_name)
-
+            orm_class = orm_class_dict.get(table_name)
             if not orm_class or (not incremental and not table_is_empty(table_name)):
                 logging.info(f"No action taken for table '{table_name}' from file '{file_name}'")
                 return
 
             with pq.ParquetFile(file_path) as pf:
-                iterator = pf.iter_batches(batch_size=4000000)  # Adjust batch size based on your memory constraints
-                session = Session()
+                iterator = pf.iter_batches(batch_size=2000000)
                 total_rows = 0
                 for batch in iterator:
                     data = batch.to_pydict()
@@ -137,56 +148,64 @@ def process_file(file_path, incremental=False):
                         row_data = {key: value[i] for key, value in data.items() if key in table_columns}
                         filtered_data.append(row_data)
 
-                    if incremental:
-                        primary_key = [key.name for key in orm_class.__table__.primary_key.columns][0]
-                        insert_statement = insert(orm_class.__table__).on_conflict_do_update(
-                            index_elements=[primary_key],
-                            set_={key: value for key, value in row_data.items() if key != primary_key}
-                        )
-                    else:
-                        insert_statement = insert(orm_class.__table__).on_conflict_do_nothing()
+                        if incremental:
+                            primary_key = [key.name for key in orm_class.__table__.primary_key.columns][0]
+                            insert_statement = insert(orm_class.__table__).on_conflict_do_update(
+                                index_elements=[primary_key],
+                                set_={key: value for key, value in row_data.items() if key != primary_key}
+                            )
+                        else:
+                            insert_statement = insert(orm_class.__table__).on_conflict_do_nothing()
 
-                    session.execute(insert_statement, filtered_data)
-                    session.commit()
-                    total_rows += len(filtered_data)
+                        session.execute(insert_statement, [row_data])
+                        total_rows += 1
 
-                logging.info(f"File {file_name} processed: {total_rows} rows inserted/updated")
+                session.commit()
+                #logging.info(f"File {file_name} processed: {total_rows} rows inserted/updated")
+
                 if incremental:
                     record_file_as_processed(file_name)
-            session.close()
     except Timeout:
-        pass
-        #logging.info(f"Skipping locked file {file_name}")
+        logging.info(f"Skipping locked file {file_name}")
+
 
 
 def main():
     run_sql_script('./sql/setup.sql')
 
     full_path = './downloads/full'
-    newest_full_timestamp = datetime.min
-    for file in os.listdir(full_path):
+    incremental_path = './downloads/incremental'
+
+    # Process full files first, sequentially, sorted by timestamp
+    full_files = sorted(os.listdir(full_path), key=lambda f: extract_timestamp(f))
+    for file in full_files:
         file_path = os.path.join(full_path, file)
         try:
-            unix_timestamp = extract_timestamp(file)
-            timestamp = convert_unix_to_datetime(unix_timestamp)
-            if timestamp > newest_full_timestamp:
-                newest_full_timestamp = timestamp
             process_file(file_path, incremental=False)
-        except ValueError as e:
+        except Exception as e:
             logging.error(e)
+
+    # Categorize incremental files by type and sort them by timestamp within each category
+    categorized_files = defaultdict(list)
+    for file in os.listdir(incremental_path):
+        try:
+            category = file.split('-')[1]  # Assuming category is defined in the filename
+            categorized_files[category].append(file)
+        except IndexError:
+            logging.error(f"Filename format error: {file}")
             continue
 
-    incremental_path = './downloads/incremental'
-    for file in os.listdir(incremental_path):
-        file_path = os.path.join(incremental_path, file)
-        try:
-            unix_timestamp = extract_timestamp(file)
-            timestamp = convert_unix_to_datetime(unix_timestamp)
-            if timestamp >= newest_full_timestamp:
-                process_file(file_path, incremental=True)
-        except ValueError as e:
-            logging.error(e)
-            continue
+    for category in categorized_files:
+        categorized_files[category] = sorted(categorized_files[category], key=lambda f: extract_timestamp(f))
+
+    threads = []
+    for category, files in categorized_files.items():
+        thread = threading.Thread(target=process_category_files, args=(files, incremental_path, True))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
 if __name__ == "__main__":
     main()
