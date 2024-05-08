@@ -11,10 +11,16 @@ module.exports = {
     cron_restart: '*/5 * * * *',
     exec_mode: 'fork',
     autorestart: false
+  },
+  {
+    name: 'insert_update_sql_single_run',
+    script: './scripts/insert_update_sql.sh',
+    exec_mode: 'fork',
+    autorestart: false
   },{
     name: 'update_full_files',
-    script: './scripts/update_full_files.sh',  // Updated to call the new Bash script
-    cron_restart: '0 0 */7 * *',  // Set this to your desired schedule
+    script: './scripts/update_full_files.sh',
+    cron_restart: '0 0 */7 * *',
     exec_mode: 'fork',
     autorestart: false
   }]

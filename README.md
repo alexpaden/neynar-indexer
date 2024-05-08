@@ -45,7 +45,15 @@ sudo scripts/neynar_indexer_droplet_setup.sh
   - **Database Updates:** Automated to run every 5 minutes.
   - **Full File Updates:** Scheduled to clear storage and download new full files once per week.
 
+start all after first run
 ```sh
 pm2 start ecosystem.config.js
+```
+or individually via
+```sh
+pm2 start ecosystem.config.js --only download_files
+pm2 start ecosystem.config.js --only insert_update_sql
+pm2 start ecosystem.config.js --only insert_update_sql_single_run
+pm2 start ecosystem.config.js --only update_full_files
 ```
 
