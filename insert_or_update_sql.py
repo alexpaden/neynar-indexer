@@ -1,17 +1,18 @@
+import logging
 import os
 import sys
+import threading
+from collections import defaultdict
+from datetime import datetime
 
 import pyarrow.parquet as pq
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.dialects.postgresql import insert
-from models import Base, Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, FileTracking
-import logging
 from dotenv import load_dotenv
 from filelock import FileLock, Timeout
-from datetime import datetime
-from collections import defaultdict
-import threading
+from sqlalchemy import create_engine, text
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import sessionmaker
+
+from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, FileTracking
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv()
@@ -29,8 +30,9 @@ CONNECTION_STRING = f"postgresql://{env_vars['DB_USER']}:{env_vars['DB_PASS']}@{
 ENGINE = create_engine(CONNECTION_STRING)
 Session = sessionmaker(bind=ENGINE)
 
-#skip_tables = {'links', 'reactions'}
+# skip_tables = {'links', 'reactions'}
 skip_tables = {}
+
 
 def run_sql_script(filename):
     with open(filename, 'r') as file:
@@ -120,7 +122,7 @@ def process_file(file_path, incremental=False):
     }
 
     if table_name in skip_tables:
-        #logging.info(f"Skipping file {file_name} associated with table {table_name}")
+        # logging.info(f"Skipping file {file_name} associated with table {table_name}")
         return
 
     lock_path = f'/tmp/{file_name}.lock'
@@ -129,7 +131,7 @@ def process_file(file_path, incremental=False):
     try:
         with lock.acquire(timeout=0), Session() as session:
             if incremental and file_already_processed(file_name):
-                #logging.info(f"Skipping already processed file {file_name}")
+                # logging.info(f"Skipping already processed file {file_name}")
                 return
 
             orm_class = orm_class_dict.get(table_name)
@@ -161,13 +163,12 @@ def process_file(file_path, incremental=False):
                         total_rows += 1
 
                 session.commit()
-                #logging.info(f"File {file_name} processed: {total_rows} rows inserted/updated")
+                # logging.info(f"File {file_name} processed: {total_rows} rows inserted/updated")
 
                 if incremental:
                     record_file_as_processed(file_name)
     except Timeout:
         logging.info(f"Skipping locked file {file_name}")
-
 
 
 def main():
@@ -207,7 +208,7 @@ def main():
     for thread in threads:
         thread.join()
 
+
 if __name__ == "__main__":
     main()
     logging.info("Script finished")
-

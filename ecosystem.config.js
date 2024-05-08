@@ -1,16 +1,22 @@
 module.exports = {
   apps : [{
     name: 'download_files',
-    script: 'python3',
-    args: 'download_or_update_files.py',
-    cron_restart: '*/5 * * * *',
-    exec_mode: 'fork'
-  },{
-    name: 'insert_update_sql',
-    script: 'python3',
-    args: 'insert_or_update_sql.py',
+    script: './download_files.sh',
     cron_restart: '*/5 * * * *',
     exec_mode: 'fork',
-    delay: 45000 // delay in milliseconds
+    autorestart: false
+  },{
+    name: 'insert_update_sql',
+    script: './insert_update_sql.sh',
+    cron_restart: '*/5 * * * *',
+    exec_mode: 'fork',
+    autorestart: false
+  },{
+    name: 'update_full_files',
+    script: 'python3',
+    args: 'update_full_files.py',
+    cron_restart: '0 0 */7 * *',
+    exec_mode: 'fork',
+    autorestart: false
   }]
 };

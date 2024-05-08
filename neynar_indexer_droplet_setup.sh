@@ -59,3 +59,5 @@ source ~/.bashrc
 
 # Configure s3 bucket for neynar information (assuming credentials are set)
 aws configure --profile neynar_parquet_exports
+
+chmod +x download_files.sh insert_update_sql.sh
