@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 
-from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications
+from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, WarpcastPowerUsers
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,7 +41,8 @@ ENGINE = create_engine(
 )
 Session = sessionmaker(bind=ENGINE)
 
-skip_tables = {'links'}
+#skip_tables = {'links'}
+skip_tables = {}
 
 
 def run_sql_script(filename):
@@ -72,7 +73,7 @@ def table_is_empty(table_name):
 
 
 # Define a batch size
-BATCH_SIZE = 400000  # Adjust this value based on your needs and system capabilities
+BATCH_SIZE = 1000000  # Adjust this value based on your needs and system capabilities
 
 
 def process_batch(orm_class, batch_data):
@@ -98,7 +99,8 @@ def process_file(file_path):
         'reactions': Reactions,
         'fnames': Fnames,
         'signers': Signers,
-        'verifications': Verifications
+        'verifications': Verifications,
+        'warpcast_power_users': WarpcastPowerUsers
     }
 
     if table_name in skip_tables:
@@ -119,7 +121,7 @@ def process_file(file_path):
     with pq.ParquetFile(file_path) as pf:
         table_columns = {column.name for column in orm_class.__table__.columns}
 
-        with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count() * 8) as executor:
+        with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count() * 16) as executor:
             futures = []
             batch_data = []
             for row_group in pf.iter_batches():
