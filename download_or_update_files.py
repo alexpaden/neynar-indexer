@@ -43,6 +43,8 @@ def download_most_recent_file(s3_path, local_path, file_type):
 
         if files:
             most_recent_file = files[0]['Key']
+            file_size = files[0]['Size']
+            logging.info(f"Most recent file: {most_recent_file}, Size: {file_size} bytes")
             local_file_path = os.path.join(local_path, os.path.basename(most_recent_file))
             if not os.path.exists(local_file_path):
                 s3.download_file(bucket_name, most_recent_file, local_file_path)

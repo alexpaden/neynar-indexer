@@ -30,8 +30,8 @@ CONNECTION_STRING = f"postgresql://{env_vars['DB_USER']}:{env_vars['DB_PASS']}@{
 ENGINE = create_engine(CONNECTION_STRING)
 Session = sessionmaker(bind=ENGINE)
 
-# skip_tables = {'links', 'reactions'}
-skip_tables = {}
+skip_tables = {'links'}
+#skip_tables = {}
 
 
 def run_sql_script(filename):
@@ -122,7 +122,7 @@ def process_file(file_path, incremental=False):
     }
 
     if table_name in skip_tables:
-        # logging.info(f"Skipping file {file_name} associated with table {table_name}")
+        logging.info(f"Skipping file {file_name} associated with table {table_name}")
         return
 
     lock_path = f'/tmp/{file_name}.lock'
@@ -131,13 +131,15 @@ def process_file(file_path, incremental=False):
     try:
         with lock.acquire(timeout=0), Session() as session:
             if incremental and file_already_processed(file_name):
-                # logging.info(f"Skipping already processed file {file_name}")
+                logging.info(f"Skipping already processed file {file_name}")
                 return
 
             orm_class = orm_class_dict.get(table_name)
             if not orm_class or (not incremental and not table_is_empty(table_name)):
                 logging.info(f"No action taken for table '{table_name}' from file '{file_name}'")
                 return
+
+            logging.info(f"Processing file {file_name} for table {table_name}")
 
             with pq.ParquetFile(file_path) as pf:
                 iterator = pf.iter_batches(batch_size=2000000)
@@ -162,8 +164,10 @@ def process_file(file_path, incremental=False):
                         session.execute(insert_statement, [row_data])
                         total_rows += 1
 
+                    logging.info(f"Processed {total_rows} rows so far for file {file_name}")
+
                 session.commit()
-                # logging.info(f"File {file_name} processed: {total_rows} rows inserted/updated")
+                logging.info(f"File {file_name} processed: {total_rows} rows inserted/updated")
 
                 if incremental:
                     record_file_as_processed(file_name)
