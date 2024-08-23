@@ -114,6 +114,13 @@ class Verifications(Base):
     hash = Column(BYTEA)
     claim = Column(VARCHAR)
 
+class WarpcastPowerUsers(Base):
+    __tablename__ = 'warpcast_power_users'
+    fid = Column(BigInteger, primary_key=True)
+    created_at = Column(TIMESTAMP)
+    updated_at = Column(TIMESTAMP)
+    deleted_at = Column(TIMESTAMP)
+
 class FileTracking(Base):
     __tablename__ = 'file_tracking'
     file_name = Column(VARCHAR, primary_key=True)

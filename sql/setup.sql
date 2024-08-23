@@ -110,6 +110,13 @@ CREATE TABLE IF NOT EXISTS verifications (
     claim VARCHAR
 );
 
+CREATE TABLE IF NOT EXISTS warpcast_power_users (
+    fid BIGINT PRIMARY KEY,
+    created_at TIMESTAMP(6),
+    updated_at TIMESTAMP(6),
+    deleted_at TIMESTAMP(6)
+);
+
 CREATE TABLE IF NOT EXISTS file_tracking (
     file_name VARCHAR PRIMARY KEY,
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
