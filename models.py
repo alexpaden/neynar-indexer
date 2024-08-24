@@ -135,3 +135,11 @@ class FileTracking(Base):
     __tablename__ = 'file_tracking'
     file_name = Column(VARCHAR, primary_key=True)
     processed_at = Column(TIMESTAMP, default=text('CURRENT_TIMESTAMP'))
+
+class Channel(Base):
+    __tablename__ = 'channels'
+    id = Column(VARCHAR, primary_key=True)
+    name = Column(VARCHAR)
+    description = Column(VARCHAR)
+    image_url = Column(VARCHAR)
+    url = Column(VARCHAR)

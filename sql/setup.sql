@@ -132,6 +132,13 @@ CREATE TABLE IF NOT EXISTS file_tracking (
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS channels (
+    id VARCHAR PRIMARY KEY,
+    name VARCHAR,
+    description VARCHAR,
+    image_url VARCHAR,
+    url VARCHAR
+);
 
 -- Reaction Query Indexes
 CREATE INDEX IF NOT EXISTS idx_casts_hash
