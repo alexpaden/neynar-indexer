@@ -4,6 +4,7 @@ import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 import time
+import gc  # Import garbage collection module
 
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
@@ -12,7 +13,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 
-from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, WarpcastPowerUsers
+from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, WarpcastPowerUsers, ProfileWithAddresses
 
 # Load environment variables from .env file
 load_dotenv()
@@ -35,7 +36,7 @@ CONNECTION_STRING = f"postgresql://{env_vars['DB_USER']}:{env_vars['DB_PASS']}@{
 ENGINE = create_engine(
     CONNECTION_STRING,
     poolclass=QueuePool,
-    pool_size=200,  # Adjust based on your needs, but keep it below the 250 limit
+    pool_size=150,  # Adjust based on your needs, but keep it below the 250 limit
     max_overflow=50,
     pool_pre_ping=True
 )
@@ -73,7 +74,7 @@ def table_is_empty(table_name):
 
 
 # Define a batch size
-BATCH_SIZE = 1000000  # Adjust this value based on your needs and system capabilities
+BATCH_SIZE = 100000  # Reduced batch size to manage memory usage
 
 
 def process_batch(orm_class, batch_data):
@@ -100,7 +101,8 @@ def process_file(file_path):
         'fnames': Fnames,
         'signers': Signers,
         'verifications': Verifications,
-        'warpcast_power_users': WarpcastPowerUsers
+        'warpcast_power_users': WarpcastPowerUsers,
+        'profile_with_addresses': ProfileWithAddresses
     }
 
     if table_name in skip_tables:
@@ -121,7 +123,7 @@ def process_file(file_path):
     with pq.ParquetFile(file_path) as pf:
         table_columns = {column.name for column in orm_class.__table__.columns}
 
-        with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count() * 16) as executor:
+        with ProcessPoolExecutor(max_workers=6) as executor:
             futures = []
             batch_data = []
             for row_group in pf.iter_batches():
@@ -133,10 +135,12 @@ def process_file(file_path):
                     if len(batch_data) >= BATCH_SIZE:
                         futures.append(executor.submit(process_batch, orm_class, batch_data))
                         batch_data = []
+                        gc.collect()  # Explicitly call garbage collection
 
             # Process any remaining data
             if batch_data:
                 futures.append(executor.submit(process_batch, orm_class, batch_data))
+                gc.collect()  # Explicitly call garbage collection
 
             for i, future in enumerate(as_completed(futures)):
                 rows, batch_time = future.result()

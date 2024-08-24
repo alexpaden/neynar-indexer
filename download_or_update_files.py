@@ -13,7 +13,7 @@ s3_daily_path = 's3://tf-premium-parquet/public-postgres/farcaster/v2/full/'
 local_full_path = os.path.abspath('./downloads/full')
 s3_incremental_path = 's3://tf-premium-parquet/public-postgres/farcaster/v2/incremental/'
 local_incremental_path = os.path.abspath('./downloads/incremental')
-file_types = ['casts', 'fids', 'fnames', 'links', 'reactions', 'signers', 'storage', 'user_data', 'verifications']
+file_types = ['casts', 'fids', 'fnames', 'links', 'reactions', 'signers', 'storage', 'user_data', 'verifications', 'warpcast_power_users', 'profile_with_addresses']
 
 try:
     session = boto3.Session(profile_name='neynar_parquet_exports')
@@ -109,8 +109,57 @@ def download_incremental_files(bucket_name, local_incremental_path, file_type, l
             break
 
 
+def get_available_file_types(s3_path):
+    bucket_name = s3_path.split('/')[2]
+    prefix = '/'.join(s3_path.split('/')[3:])
+    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+
+    file_types = {}
+    latest_timestamp = 0
+
+    if 'Contents' in response:
+        files = response['Contents']
+        files.sort(key=lambda x: x['LastModified'], reverse=True)
+        recent_files = files[:14]  # Get the most recent 20 files
+
+        for file in recent_files:
+            file_name = file['Key'].split('/')[-1]
+            logging.info(f"File found: {file_name}")
+            if file_name.endswith('.parquet'):
+                file_parts = file_name.split('-')
+                if len(file_parts) > 1:
+                    file_type = file_parts[0]
+                    try:
+                        timestamp = int(file_parts[-1].split('.')[0])
+                    except ValueError:
+                        logging.error(f"Error parsing timestamp from file name: {file_name}")
+                        continue
+
+                    if timestamp > latest_timestamp:
+                        latest_timestamp = timestamp
+                        file_types = {file_type: timestamp}
+                    elif timestamp == latest_timestamp:
+                        file_types[file_type] = timestamp
+
+    # Log the available file types and their timestamps
+    logging.info(f"Available file types in {s3_path} (timestamp {latest_timestamp}):")
+    for file_type, timestamp in file_types.items():
+        logging.info(f"  - {file_type}: {timestamp}")
+
+    return file_types, latest_timestamp
+
+
 def main():
+
     ensure_directory_exists(local_full_path)
+
+    # Log available file types for full dataset
+    full_types, full_timestamp = get_available_file_types(s3_daily_path)
+    logging.info(f"Available file types in full dataset (timestamp {full_timestamp}):")
+    for file_type in sorted(full_types.keys()):
+        logging.info(f"  - {file_type}")
+
+
     for file_type in file_types:
         download_most_recent_file(s3_daily_path, local_full_path, file_type)
     ensure_directory_exists(local_incremental_path)

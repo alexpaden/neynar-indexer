@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker
 
-from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, FileTracking, WarpcastPowerUsers
+from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, FileTracking, WarpcastPowerUsers, ProfileWithAddresses
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv()
@@ -119,7 +119,8 @@ def process_file(file_path, incremental=False):
         'fnames': Fnames,
         'signers': Signers,
         'verifications': Verifications,
-        'warpcast_power_users': WarpcastPowerUsers
+        'warpcast_power_users': WarpcastPowerUsers,
+        'profile_with_addresses': ProfileWithAddresses
     }
 
     if table_name in skip_tables:

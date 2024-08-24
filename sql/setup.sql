@@ -117,7 +117,47 @@ CREATE TABLE IF NOT EXISTS warpcast_power_users (
     deleted_at TIMESTAMP(6)
 );
 
+CREATE TABLE IF NOT EXISTS profile_with_addresses (
+    fid BIGINT PRIMARY KEY,
+    fname VARCHAR,
+    display_name VARCHAR,
+    avatar_url VARCHAR,
+    bio VARCHAR,
+    verified_addresses VARCHAR,
+    updated_at TIMESTAMP(6)
+);
+
 CREATE TABLE IF NOT EXISTS file_tracking (
     file_name VARCHAR PRIMARY KEY,
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- Reaction Query Indexes
+CREATE INDEX IF NOT EXISTS idx_casts_hash
+ON public.casts (hash);
+
+CREATE INDEX IF NOT EXISTS idx_casts_root_parent_deleted
+ON public.casts (root_parent_hash, deleted_at);
+
+CREATE INDEX IF NOT EXISTS idx_reactions_target_type
+ON public.reactions (target_hash, reaction_type);
+
+CREATE INDEX IF NOT EXISTS idx_warpcast_power_users_fid
+ON public.warpcast_power_users (fid);
+
+-- Full neynar results indexes
+CREATE INDEX IF NOT EXISTS idx_casts_root_parent_hash
+ON public.casts (root_parent_hash);
+
+CREATE INDEX IF NOT EXISTS idx_reactions_target_fid_type
+ON public.reactions (target_hash, fid, reaction_type);
+
+CREATE INDEX IF NOT EXISTS idx_casts_hash_parent_hash
+ON public.casts (hash, parent_hash);
+
+CREATE INDEX IF NOT EXISTS idx_profile_with_addresses_fid
+ON public.profile_with_addresses (fid);
+
+CREATE INDEX IF NOT EXISTS idx_casts_parent_hash
+ON public.casts (parent_hash);

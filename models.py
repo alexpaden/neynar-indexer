@@ -121,6 +121,16 @@ class WarpcastPowerUsers(Base):
     updated_at = Column(TIMESTAMP)
     deleted_at = Column(TIMESTAMP)
 
+class ProfileWithAddresses(Base):
+    __tablename__ = 'profile_with_addresses'
+    fid = Column(BigInteger, primary_key=True)
+    fname = Column(VARCHAR)
+    display_name = Column(VARCHAR)
+    avatar_url = Column(VARCHAR)
+    bio = Column(VARCHAR)
+    verified_addresses = Column(VARCHAR)
+    updated_at = Column(TIMESTAMP)
+
 class FileTracking(Base):
     __tablename__ = 'file_tracking'
     file_name = Column(VARCHAR, primary_key=True)
