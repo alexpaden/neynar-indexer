@@ -1,16 +1,14 @@
 import logging
 import os
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
 import time
-import gc
-import psutil
-from memory_profiler import profile
-import threading
+import gc  # Import garbage collection module
 
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text, event
+from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
@@ -36,45 +34,18 @@ if None in env_vars.values():
 CONNECTION_STRING = f"postgresql://{env_vars['DB_USER']}:{env_vars['DB_PASS']}@{env_vars['DB_HOST']}:{env_vars['DB_PORT']}/{env_vars['DB_NAME']}"
 
 # Create an engine with a large connection pool
-keepalive_kwargs = {
-    "keepalives": 1,
-    "keepalives_idle": 30,
-    "keepalives_interval": 5,
-    "keepalives_count": 5,
-}
-
 ENGINE = create_engine(
     CONNECTION_STRING,
     poolclass=QueuePool,
-    pool_size=150,
+    pool_size=150,  # Adjust based on your needs, but keep it below the 250 limit
     max_overflow=50,
-    pool_pre_ping=True,
-    connect_args={"connect_timeout": 30, **keepalive_kwargs}
+    pool_pre_ping=True
 )
 Session = sessionmaker(bind=ENGINE)
 
+#skip_tables = {'links'}
 skip_tables = {}
 
-# Define a batch size
-BATCH_SIZE = 10000  # Adjusted batch size
-
-def connection_record_info(conn, record):
-    logger.debug(f"Connection record: {record}")
-
-event.listen(ENGINE, 'checkout', connection_record_info)
-
-def memory_monitor():
-    while True:
-        process = psutil.Process()
-        logger.info(f"Memory usage: {process.memory_info().rss / (1024 * 1024):.2f} MB")
-        time.sleep(60)  # Log every minute
-
-threading.Thread(target=memory_monitor, daemon=True).start()
-
-def log_memory_usage():
-    process = psutil.Process()
-    memory_info = process.memory_info()
-    logger.info(f"Memory usage: {memory_info.rss / (1024 * 1024):.2f} MB")
 
 def run_sql_script(filename):
     with open(filename, 'r') as file:
@@ -95,13 +66,18 @@ def run_sql_script(filename):
         cursor.close()
         conn.close()
 
+
 def table_is_empty(table_name):
     query = text(f"SELECT EXISTS (SELECT 1 FROM {table_name} LIMIT 1)")
     with ENGINE.connect() as conn:
         result = conn.execute(query)
         return not result.scalar()
 
-@profile
+
+# Define a batch size
+BATCH_SIZE = 100000  # Reduced batch size to manage memory usage
+
+
 def process_batch(orm_class, batch_data, retries=3):
     start_time = time.time()
     attempt = 0
@@ -125,7 +101,7 @@ def process_batch(orm_class, batch_data, retries=3):
     logger.error(f"Failed to process batch of {len(batch_data)} rows after {retries} attempts")
     return 0, 0  # Return 0 rows processed and 0 time if all attempts fail
 
-@profile
+
 def process_file(file_path):
     file_name = os.path.basename(file_path)
     table_name = file_name.split('-')[1].split('.')[0]
@@ -162,48 +138,39 @@ def process_file(file_path):
     with pq.ParquetFile(file_path) as pf:
         table_columns = {column.name for column in orm_class.__table__.columns}
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ProcessPoolExecutor(max_workers=6) as executor:
             futures = []
             batch_data = []
-            for row_group in pf.iter_batches(batch_size=BATCH_SIZE):
+            for row_group in pf.iter_batches():
                 data = row_group.to_pydict()
                 for i in range(len(row_group)):
                     row_data = {key: value[i] for key, value in data.items() if key in table_columns}
                     batch_data.append(row_data)
 
                     if len(batch_data) >= BATCH_SIZE:
-                        logger.debug(f"Created batch of size {len(batch_data)}")
                         futures.append(executor.submit(process_batch, orm_class, batch_data))
-                        logger.debug(f"Submitted batch for processing")
                         batch_data = []
-                        gc.collect()
+                        gc.collect()  # Explicitly call garbage collection
 
+            # Process any remaining data
             if batch_data:
                 futures.append(executor.submit(process_batch, orm_class, batch_data))
-                gc.collect()
+                gc.collect()  # Explicitly call garbage collection
 
             for i, future in enumerate(as_completed(futures)):
-                try:
-                    rows, batch_time = future.result()
-                    total_rows += rows
-                    total_time += batch_time
-                    if (i + 1) % 10 == 0 or i == len(futures) - 1:
-                        logger.info(f"Processed {total_rows} rows in {total_time:.2f} seconds. "
-                                    f"Average rate: {total_rows / total_time:.2f} rows/second")
-                        log_memory_usage()
-                except Exception as e:
-                    logger.error(f"Error processing batch: {e}")
-
-    del pf
-    gc.collect(generation=2)  # Force full collection
+                rows, batch_time = future.result()
+                total_rows += rows
+                total_time += batch_time
+                if (i + 1) % 10 == 0 or i == len(futures) - 1:  # Log every 10 batches or at the end
+                    logger.info(f"Processed {total_rows} rows in {total_time:.2f} seconds. "
+                                f"Average rate: {total_rows / total_time:.2f} rows/second")
 
     end_time = time.time()
     total_file_time = end_time - start_time
     logger.info(f"File {file_name} processed: {total_rows} rows in {total_file_time:.2f} seconds. "
                 f"Overall rate: {total_rows / total_file_time:.2f} rows/second")
-    log_memory_usage()
 
-@profile
+
 def main():
     run_sql_script('./sql/setup.sql')
 
@@ -223,12 +190,10 @@ def main():
         end_time = time.time()
         logger.info(f"Total processing time for {file}: {end_time - start_time:.2f} seconds")
         logger.info(f"Completed {i}/{total_files} files")
-        log_memory_usage()
-        gc.collect(generation=2)  # Force full collection after each file
+
 
 if __name__ == "__main__":
     main_start_time = time.time()
     main()
     main_end_time = time.time()
     logger.info(f"Script finished. Total execution time: {main_end_time - main_start_time:.2f} seconds")
-    log_memory_usage()
