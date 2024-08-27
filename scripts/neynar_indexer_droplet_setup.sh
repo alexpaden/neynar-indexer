@@ -24,7 +24,7 @@ add-apt-repository -y ppa:deadsnakes/ppa
 apt-get update
 apt-get install -y python3.10 python3-pip
 apt-get install -y python3-boto3 python3-botocore python3-dotenv python3-pandas python3-filelock psycopg2
-pip install pyarrow --break-system-packages
+pip install pyarrow boto3 python-dotenv --break-system-packages
 pip install sqlalchemy --break-system-packages
 
 # AWS CLI installation
