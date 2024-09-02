@@ -2,9 +2,9 @@ import logging
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import multiprocessing
 import time
-import gc  # Import garbage collection module
+import gc
+import psutil
 
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
@@ -33,19 +33,21 @@ if None in env_vars.values():
 
 CONNECTION_STRING = f"postgresql://{env_vars['DB_USER']}:{env_vars['DB_PASS']}@{env_vars['DB_HOST']}:{env_vars['DB_PORT']}/{env_vars['DB_NAME']}"
 
-# Create an engine with a large connection pool
+# Create an engine with an optimized connection pool
 ENGINE = create_engine(
     CONNECTION_STRING,
     poolclass=QueuePool,
-    pool_size=150,  # Adjust based on your needs, but keep it below the 250 limit
-    max_overflow=50,
-    pool_pre_ping=True
+    pool_size=400,  # Increased from 50 to better utilize resources
+    max_overflow=100,  # Increased from 10 to allow more connections during peak times
+    pool_pre_ping=True,
+    pool_recycle=1800  # Recycle connections after an hour
 )
 Session = sessionmaker(bind=ENGINE)
 
-#skip_tables = {'links'}
 skip_tables = {}
 
+# Increased batch size to better utilize resources
+BATCH_SIZE = 200000  # Adjusted from 100k to 500k
 
 def run_sql_script(filename):
     with open(filename, 'r') as file:
@@ -66,17 +68,11 @@ def run_sql_script(filename):
         cursor.close()
         conn.close()
 
-
 def table_is_empty(table_name):
     query = text(f"SELECT EXISTS (SELECT 1 FROM {table_name} LIMIT 1)")
     with ENGINE.connect() as conn:
         result = conn.execute(query)
         return not result.scalar()
-
-
-# Define a batch size
-BATCH_SIZE = 100000  # Reduced batch size to manage memory usage
-
 
 def process_batch(orm_class, batch_data, retries=3):
     start_time = time.time()
@@ -97,10 +93,31 @@ def process_batch(orm_class, batch_data, retries=3):
             if attempt < retries:
                 time.sleep(2 ** attempt)  # Exponential backoff
         finally:
-            session.close()  # Ensure the session is closed
+            session.close()
     logger.error(f"Failed to process batch of {len(batch_data)} rows after {retries} attempts")
-    return 0, 0  # Return 0 rows processed and 0 time if all attempts fail
+    return 0, 0
 
+def process_chunk(orm_class, chunk, batch_size):
+    total_rows = 0
+    total_time = 0
+    batch_data = []
+
+    for row in chunk.to_pylist():
+        row_data = {key: value for key, value in row.items() if key in orm_class.__table__.columns.keys()}
+        batch_data.append(row_data)
+
+        if len(batch_data) >= batch_size:
+            rows, batch_time = process_batch(orm_class, batch_data)
+            total_rows += rows
+            total_time += batch_time
+            batch_data = []
+
+    if batch_data:
+        rows, batch_time = process_batch(orm_class, batch_data)
+        total_rows += rows
+        total_time += batch_time
+
+    return total_rows, total_time
 
 def process_file(file_path):
     file_name = os.path.basename(file_path)
@@ -135,41 +152,34 @@ def process_file(file_path):
     total_time = 0
     start_time = time.time()
 
+    # Determine the number of CPU cores and available memory
+    num_cores = psutil.cpu_count(logical=False)
+    available_memory = psutil.virtual_memory().available
+
+    # Calculate chunk size based on available memory (aim for ~10% of available memory per chunk)
+    chunk_size = max(10000, int(available_memory * 0.1 / (num_cores * 8)))  # Assuming 8 bytes per value on average
+
     with pq.ParquetFile(file_path) as pf:
-        table_columns = {column.name for column in orm_class.__table__.columns}
-
-        with ProcessPoolExecutor(max_workers=6) as executor:
+        num_row_groups = pf.num_row_groups
+        with ProcessPoolExecutor(max_workers=num_cores) as executor:
             futures = []
-            batch_data = []
-            for row_group in pf.iter_batches():
-                data = row_group.to_pydict()
-                for i in range(len(row_group)):
-                    row_data = {key: value[i] for key, value in data.items() if key in table_columns}
-                    batch_data.append(row_data)
+            for row_group in range(num_row_groups):
+                table = pf.read_row_group(row_group)
+                for chunk_start in range(0, len(table), chunk_size):
+                    chunk = table.slice(chunk_start, chunk_size)
+                    futures.append(executor.submit(process_chunk, orm_class, chunk, BATCH_SIZE))
 
-                    if len(batch_data) >= BATCH_SIZE:
-                        futures.append(executor.submit(process_batch, orm_class, batch_data))
-                        batch_data = []
-                        gc.collect()  # Explicitly call garbage collection
-
-            # Process any remaining data
-            if batch_data:
-                futures.append(executor.submit(process_batch, orm_class, batch_data))
-                gc.collect()  # Explicitly call garbage collection
-
-            for i, future in enumerate(as_completed(futures)):
-                rows, batch_time = future.result()
+            for future in as_completed(futures):
+                rows, chunk_time = future.result()
                 total_rows += rows
-                total_time += batch_time
-                if (i + 1) % 10 == 0 or i == len(futures) - 1:  # Log every 10 batches or at the end
-                    logger.info(f"Processed {total_rows} rows in {total_time:.2f} seconds. "
-                                f"Average rate: {total_rows / total_time:.2f} rows/second")
+                total_time += chunk_time
+                logger.info(f"Processed {total_rows} rows in {total_time:.2f} seconds. "
+                            f"Average rate: {total_rows / total_time:.2f} rows/second")
 
     end_time = time.time()
     total_file_time = end_time - start_time
     logger.info(f"File {file_name} processed: {total_rows} rows in {total_file_time:.2f} seconds. "
                 f"Overall rate: {total_rows / total_file_time:.2f} rows/second")
-
 
 def main():
     run_sql_script('./sql/setup.sql')
@@ -190,7 +200,6 @@ def main():
         end_time = time.time()
         logger.info(f"Total processing time for {file}: {end_time - start_time:.2f} seconds")
         logger.info(f"Completed {i}/{total_files} files")
-
 
 if __name__ == "__main__":
     main_start_time = time.time()

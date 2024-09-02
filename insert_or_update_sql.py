@@ -4,15 +4,17 @@ import sys
 import threading
 from collections import defaultdict
 from datetime import datetime
+import json
 
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
 from filelock import FileLock, Timeout
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, ARRAY
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import sessionmaker
 
-from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, FileTracking, WarpcastPowerUsers, ProfileWithAddresses
+from models import Fids, Storage, Links, Casts, UserData, Reactions, Fnames, Signers, Verifications, FileTracking, \
+    WarpcastPowerUsers, ProfileWithAddresses
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 load_dotenv()
@@ -31,7 +33,9 @@ ENGINE = create_engine(CONNECTION_STRING)
 Session = sessionmaker(bind=ENGINE)
 
 skip_tables = {'links'}
-#skip_tables = {}
+
+
+# skip_tables = {}
 
 
 def run_sql_script(filename):
@@ -152,6 +156,24 @@ def process_file(file_path, incremental=False):
                     filtered_data = []
                     for i in range(len(batch)):
                         row_data = {key: value[i] for key, value in data.items() if key in table_columns}
+
+                        # Convert mentions_positions to array of SmallInteger
+                        if 'mentions_positions' in row_data:
+                            if isinstance(row_data['mentions_positions'], str):
+                                row_data['mentions_positions'] = [int(x) for x in
+                                                                  row_data['mentions_positions'].strip('[]').split(',')
+                                                                  if x]
+                            elif isinstance(row_data['mentions_positions'], list):
+                                row_data['mentions_positions'] = [int(x) for x in row_data['mentions_positions']]
+
+                        # Convert embeds and mentions to proper JSON arrays
+                        for field in ['embeds', 'mentions']:
+                            if field in row_data and isinstance(row_data[field], str):
+                                try:
+                                    row_data[field] = json.loads(row_data[field])
+                                except json.JSONDecodeError:
+                                    row_data[field] = []
+
                         filtered_data.append(row_data)
 
                         if incremental:
