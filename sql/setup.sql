@@ -178,3 +178,8 @@ ON public.profile_with_addresses (fid);
 
 CREATE INDEX IF NOT EXISTS idx_casts_parent_hash
 ON public.casts (parent_hash);
+
+CREATE INDEX IF NOT EXISTS idx_casts_fid ON casts(fid);
+CREATE INDEX IF NOT EXISTS idx_reactions_target_hash ON reactions(target_hash);
+CREATE INDEX IF NOT EXISTS idx_casts_parent_hash ON casts(parent_hash);
+CREATE INDEX IF NOT EXISTS idx_casts_timestamp ON casts(timestamp);
