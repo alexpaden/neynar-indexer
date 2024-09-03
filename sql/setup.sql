@@ -187,3 +187,10 @@ CREATE INDEX IF NOT EXISTS idx_casts_timestamp ON casts(timestamp);
 CREATE INDEX IF NOT EXISTS idx_reactions_target_hash_reaction_type ON reactions(target_hash, reaction_type);
 CREATE INDEX IF NOT EXISTS idx_casts_fid_timestamp_hash ON casts(fid, timestamp, hash);
 CREATE INDEX IF NOT EXISTS idx_casts_parent_hash_hash ON casts(parent_hash, hash);
+
+-- Index for filtering casts by fid
+CREATE INDEX IF NOT EXISTS idx_casts_fid ON casts(fid);
+-- Index for joining reactions with target_hash and reaction_type
+CREATE INDEX IF NOT EXISTS idx_reactions_target_hash_reaction_type ON reactions(target_hash, reaction_type);
+-- Index for joining casts with parent_hash
+CREATE INDEX IF NOT EXISTS idx_casts_parent_hash ON casts(parent_hash);
